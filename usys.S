@@ -9,8 +9,10 @@
     ret
 
 SYSCALL(fork)
+SYSCALL(clone)
 SYSCALL(exit)
 SYSCALL(wait)
+SYSCALL(join)
 SYSCALL(pipe)
 SYSCALL(read)
 SYSCALL(write)

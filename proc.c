@@ -221,34 +221,46 @@ fork(void)
   return pid;
 }
 
-// clone() - Very similar to fork(), but uses a desginated stack and function
-//
+/* clone() - Very similar to fork(), but uses a desginated stack and function
+
+-eip, esp, edp are the registers we have to change. Need to look at the x86 file to see how.
+-set eip pointer = *fcn
+-have to manually move the stack pointer and know the order how the stack grows, like arg, ..., return. offseting by page size and such.
+
+-This file has a decent amount of changes. But join() created from wait() only has like 3
+
+-p_thread create and wait in the next step is basically just a wrapper for clone and join
+*/
 int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
 {
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc(); // need this still
 
-  // Allocate process.
+  //checking stack pointer - insp
+  if(((uint)stack % PGSIZE) != 0)
+    return -1;
+
+  if((curproc->sz - (uint)stack) < PGSIZE)
+    return -1;
+
+  // Allocate process. -insp
   if((np = allocproc()) == 0){
     return -1;
   }
+  
+  np->pgdir = curproc->pgdir; //insp
 
-  // DONT NEED THIS
-  // if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-  //   kfree(np->kstack);
-  //   np->kstack = 0;
-  //   np->state = UNUSED;
-  //   return -1;
-  // }
 
-  //eip, esp, edp are the registers we have to change. Need to look at the x86 file to see how.
-  // set eip pointer = *fcn
-  // have to manually move the stack pointer and know the order how the stack grows, like arg, ..., return. offseting by page size and such.
-
-  // This file has a decent amount of changes. But join() created from wait() only has like 3
-
-  //p_thread create and wait in the next step is basically just a wrapper for clone and join
+  //insp
+  int user_stack[3];
+  uint stack_pointer = (uint)stack + PGSIZE;
+  user_stack[0] = 0xffffffff;
+  user_stack[1] = (uint)arg1;
+  user_stack[2] = (uint)arg2;
+  stack_pointer -= 12;
+  if (copyout(np->pgdir, stack_pointer, user_stack, 12) < 0)
+    return -1;
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -257,22 +269,25 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0; //change register
 
+  //insp
+  np->tf->esp = (uint)stack_pointer;
+  np->tf->eip = (uint)fcn;
+  np->stack = stack;
+
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
 
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
+  //insp
   pid = np->pid;
-
-  acquire(&ptable.lock);
-
   np->state = RUNNABLE;
 
-  release(&ptable.lock);
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
 
   return pid;
+
 }
 
 // Exit the current process.  Does not return.
@@ -335,7 +350,7 @@ wait(void)
     // Scan through table looking for exited children.
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != curproc)
+      if(p->parent != curproc || p->pgdir == curproc->pgdir)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
@@ -344,6 +359,55 @@ wait(void)
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+
+// Join() - similar to wait
+//
+//
+int join(void **stack)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curproc || p->pgdir != curproc->pgdir)
+        continue;
+      havekids = 1;
+      if(p->state != ZOMBIE)
+        continue;
+      if(p->state == ZOMBIE){
+        // Found one.
+        *stack = p->stack;
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        //freevm(p->pgdir);
+        p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;

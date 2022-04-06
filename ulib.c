@@ -3,6 +3,7 @@
 #include "fcntl.h"
 #include "user.h"
 #include "x86.h"
+#include "mmu.h"
 
 char*
 strcpy(char *s, const char *t)
@@ -104,3 +105,53 @@ memmove(void *vdst, const void *vsrc, int n)
     *dst++ = *src++;
   return vdst;
 }
+
+
+int thread_create(void (*start_routine)(void *, void *), void *arg1, void *arg2) {
+
+  void *user_stack = malloc(PGSIZE*2);
+
+  if ((uint)user_stack % PGSIZE != 0) {
+    user_stack += (PGSIZE - ((uint)user_stack % PGSIZE));
+  }
+
+  return clone(user_stack, start_routine, arg1, arg2);
+
+}
+
+int thread_join(){
+
+  void* diov;
+  int out = join(&diov);
+  free(diov);
+  return out;
+}
+
+// https://en.wikipedia.org/wiki/Fetch-and-add 
+static inline int fetch_and_add(int* variable, int value) {
+    __asm__ volatile("lock; xaddl %0, %1"
+      : "+r" (value), "+m" (*variable) // input + output
+      : // No input-only
+      : "memory"
+    );
+    return value;
+}
+
+void lock_init(lock_t *lock) {
+  lock->ticket = 0;
+  lock->turn = 0;
+}
+
+void lock_acquire(lock_t *lock) {
+
+    int myturn = fetch_and_add(&lock->ticket, 1);
+
+    while (lock->turn != myturn) {
+      ; // spin
+    }
+}
+
+void lock_release(lock_t *lock) {
+    lock->turn = lock->turn + 1;
+}
+

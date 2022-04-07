@@ -31,15 +31,6 @@ main(int argc, char *argv[])
      stack = p;
 
    assert(clone(worker, 0, 0, stack) == -1);
-
-   stack = sbrk(0);
-   if((uint)stack % PGSIZE)
-     stack = stack + (PGSIZE - (uint)stack % PGSIZE);
-   sbrk( ((uint)stack - (uint)sbrk(0)) + PGSIZE/2 );
-   assert((uint)stack % PGSIZE == 0);
-   assert((uint)sbrk(0) - (uint)stack == PGSIZE/2);
-
-   assert(clone(worker, 0, 0, stack) == -1);
    
    printf(1, "TEST PASSED\n");
    free(p);

@@ -169,6 +169,21 @@ growproc(int n)
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
+
+  //loop through the process table looking for processes
+  //which have the same pgdir field as curproc, and then update
+  //their sz field to be equal to curproc->sz if u find one
+
+  struct proc *p;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if ( p->pgdir == curproc->pgdir) {
+      p->sz = curproc->sz;
+    }
+  }
+
+
+
   curproc->sz = sz;
   switchuvm(curproc);
   return 0;
@@ -222,45 +237,38 @@ fork(void)
 }
 
 /* clone() - Very similar to fork(), but uses a desginated stack and function
-
--eip, esp, edp are the registers we have to change. Need to look at the x86 file to see how.
--set eip pointer = *fcn
--have to manually move the stack pointer and know the order how the stack grows, like arg, ..., return. offseting by page size and such.
-
--This file has a decent amount of changes. But join() created from wait() only has like 3
-
--p_thread create and wait in the next step is basically just a wrapper for clone and join
+*
 */
-int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
-{
+int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
+
   int i, pid;
   struct proc *np;
-  struct proc *curproc = myproc(); // need this still
+  struct proc *curproc = myproc();
 
-  //checking stack pointer - insp
-  if(((uint)stack % PGSIZE) != 0)
+  if(((uint)stack % PGSIZE) != 0) {
     return -1;
+  }
 
-  if((curproc->sz - (uint)stack) < PGSIZE)
+  if((curproc->sz - (uint)stack) < PGSIZE){
     return -1;
+  }
 
-  // Allocate process. -insp
   if((np = allocproc()) == 0){
     return -1;
   }
   
-  np->pgdir = curproc->pgdir; //insp
+  np->pgdir = curproc->pgdir;
 
-
-  //insp
-  int user_stack[3];
-  uint stack_pointer = (uint)stack + PGSIZE;
-  user_stack[0] = 0xffffffff;
-  user_stack[1] = (uint)arg1;
-  user_stack[2] = (uint)arg2;
-  stack_pointer -= 12;
-  if (copyout(np->pgdir, stack_pointer, user_stack, 12) < 0)
+  int stack_arr[3];
+  uint s_ptr = (uint)stack + PGSIZE;
+  stack_arr[0] = 0xffffffff;
+  stack_arr[1] = (uint)arg1;
+  stack_arr[2] = (uint)arg2;
+  s_ptr -= 12;
+  
+  if (copyout(np->pgdir, s_ptr, stack_arr, 12) < 0){
     return -1;
+  }
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -269,25 +277,29 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0; //change register
 
-  //insp
-  np->tf->esp = (uint)stack_pointer;
+  
+  np->tf->esp = (uint)s_ptr;
   np->tf->eip = (uint)fcn;
-  np->stack = stack;
 
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
+
+  for(i = 0; i < NOFILE; i++) {
+    if(curproc->ofile[i]) {
       np->ofile[i] = filedup(curproc->ofile[i]);
+    }
+}
   np->cwd = idup(curproc->cwd);
 
-  //insp
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
   pid = np->pid;
+
+
+  acquire(&ptable.lock);
+
   np->state = RUNNABLE;
 
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
+  release(&ptable.lock);
 
   return pid;
-
 }
 
 // Exit the current process.  Does not return.
@@ -384,8 +396,8 @@ wait(void)
 // Join() - similar to wait
 //
 //
-int join(void **stack)
-{
+int join(void **stack){
+  
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
@@ -398,11 +410,12 @@ int join(void **stack)
       if(p->parent != curproc || p->pgdir != curproc->pgdir)
         continue;
       havekids = 1;
-      if(p->state != ZOMBIE)
+      if(p->state != ZOMBIE) {
         continue;
+      }
       if(p->state == ZOMBIE){
         // Found one.
-        *stack = p->stack;
+        *stack =(void*) p->tf->esp;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;

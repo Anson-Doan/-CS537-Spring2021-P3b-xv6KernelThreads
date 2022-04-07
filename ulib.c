@@ -116,11 +116,9 @@ int thread_create(void (*start_routine)(void *, void *), void *arg1, void *arg2)
   }
 
   return clone(user_stack, start_routine, arg1, arg2);
-
 }
 
 int thread_join(){
-
   void* diov;
   int out = join(&diov);
   free(diov);
@@ -145,8 +143,7 @@ void lock_init(lock_t *lock) {
 void lock_acquire(lock_t *lock) {
 
     int myturn = fetch_and_add(&lock->ticket, 1);
-
-    while (lock->turn != myturn) {
+    while( fetch_and_add(&lock->turn, 0) != myturn ) { //changed
       ; // spin
     }
 }
@@ -154,4 +151,3 @@ void lock_acquire(lock_t *lock) {
 void lock_release(lock_t *lock) {
     lock->turn = lock->turn + 1;
 }
-

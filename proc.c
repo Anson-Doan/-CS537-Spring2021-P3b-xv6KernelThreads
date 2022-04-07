@@ -173,15 +173,12 @@ growproc(int n)
   //loop through the process table looking for processes
   //which have the same pgdir field as curproc, and then update
   //their sz field to be equal to curproc->sz if u find one
-
   struct proc *p;
-
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if ( p->pgdir == curproc->pgdir) {
       p->sz = curproc->sz;
     }
   }
-
 
 
   curproc->sz = sz;
@@ -259,20 +256,23 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
   
   np->pgdir = curproc->pgdir;
 
-  int stack_arr[3];
+  int nargs = 3;
+
+  uint stack_arr[nargs];
   uint s_ptr = (uint)stack + PGSIZE;
   stack_arr[0] = 0xffffffff;
   stack_arr[1] = (uint)arg1;
   stack_arr[2] = (uint)arg2;
-  s_ptr -= 12;
+  s_ptr -= nargs*4;
   
-  if (copyout(np->pgdir, s_ptr, stack_arr, 12) < 0){
+  if (copyout(np->pgdir, s_ptr, stack_arr, nargs*4) < 0){
     return -1;
   }
 
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  np->user_stack = stack;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0; //change register
@@ -290,13 +290,11 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
   pid = np->pid;
 
-
   acquire(&ptable.lock);
-
   np->state = RUNNABLE;
-
   release(&ptable.lock);
 
   return pid;
@@ -415,7 +413,7 @@ int join(void **stack){
       }
       if(p->state == ZOMBIE){
         // Found one.
-        *stack =(void*) p->tf->esp;
+        *stack = p->user_stack;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;

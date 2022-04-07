@@ -264,10 +264,11 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
   stack_arr[1] = (uint)arg1;
   stack_arr[2] = (uint)arg2;
   s_ptr -= nargs*4;
-  
+  //cprintf("%d %d\n", stack_arr[1], stack_arr[2]);
   if (copyout(np->pgdir, s_ptr, stack_arr, nargs*4) < 0){
     return -1;
   }
+  //cprintf("%d %d\n", *(uint*)(s_ptr + 4), *(uint*)(s_ptr + 8));
 
   np->sz = curproc->sz;
   np->parent = curproc;

@@ -9833,36 +9833,36 @@ sys_clone(void)
 80104f39:	78 5b                	js     80104f96 <sys_clone+0x79>
     return -1;
   }
-  if (argptr(0, (void*)&arg1, sizeof(void*)) < 0) {
+  if (argptr(1, (void*)&arg1, sizeof(void*)) < 0) {
 80104f3b:	83 ec 04             	sub    $0x4,%esp
 80104f3e:	6a 04                	push   $0x4
 80104f40:	8d 45 f0             	lea    -0x10(%ebp),%eax
 80104f43:	50                   	push   %eax
-80104f44:	6a 00                	push   $0x0
+80104f44:	6a 01                	push   $0x1
 80104f46:	e8 24 f3 ff ff       	call   8010426f <argptr>
 80104f4b:	83 c4 10             	add    $0x10,%esp
 80104f4e:	85 c0                	test   %eax,%eax
 80104f50:	78 4b                	js     80104f9d <sys_clone+0x80>
     return -1;
   }
-  if (argptr(0, (void*)&arg2, sizeof(void*)) < 0) {
+  if (argptr(2, (void*)&arg2, sizeof(void*)) < 0) {
 80104f52:	83 ec 04             	sub    $0x4,%esp
 80104f55:	6a 04                	push   $0x4
 80104f57:	8d 45 ec             	lea    -0x14(%ebp),%eax
 80104f5a:	50                   	push   %eax
-80104f5b:	6a 00                	push   $0x0
+80104f5b:	6a 02                	push   $0x2
 80104f5d:	e8 0d f3 ff ff       	call   8010426f <argptr>
 80104f62:	83 c4 10             	add    $0x10,%esp
 80104f65:	85 c0                	test   %eax,%eax
 80104f67:	78 3b                	js     80104fa4 <sys_clone+0x87>
     return -1;
   }
-  if (argptr(0, (void*)&stack, sizeof(void*)) < 0) {
+  if (argptr(3, (void*)&stack, sizeof(void*)) < 0) {
 80104f69:	83 ec 04             	sub    $0x4,%esp
 80104f6c:	6a 04                	push   $0x4
 80104f6e:	8d 45 e8             	lea    -0x18(%ebp),%eax
 80104f71:	50                   	push   %eax
-80104f72:	6a 00                	push   $0x0
+80104f72:	6a 03                	push   $0x3
 80104f74:	e8 f6 f2 ff ff       	call   8010426f <argptr>
 80104f79:	83 c4 10             	add    $0x10,%esp
 80104f7c:	85 c0                	test   %eax,%eax

@@ -1,1 +1,0 @@
-trap 6 err 0 on cpu 0 eip 0xaff4 addr 0x0--kill proc

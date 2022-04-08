@@ -58,9 +58,6 @@ sys_join(void)
   return join(stack);
 }
 
-
-
-
 int
 sys_kill(void)
 {

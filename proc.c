@@ -180,7 +180,6 @@ growproc(int n)
     }
   }
 
-
   curproc->sz = sz;
   switchuvm(curproc);
   return 0;
@@ -242,11 +241,8 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
   struct proc *np;
   struct proc *curproc = myproc();
 
+  // checks alignment
   if(((uint)stack % PGSIZE) != 0) {
-    return -1;
-  }
-
-  if((curproc->sz - (uint)stack) < PGSIZE){
     return -1;
   }
 
@@ -258,18 +254,20 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
 
   int nargs = 3;
 
+  // create stack array
   uint stack_arr[nargs];
   uint s_ptr = (uint)stack + PGSIZE;
   stack_arr[0] = 0xffffffff;
   stack_arr[1] = (uint)arg1;
   stack_arr[2] = (uint)arg2;
   s_ptr -= nargs*4;
-  //cprintf("%d %d\n", stack_arr[1], stack_arr[2]);
+
+  // copy array to the actual stack
   if (copyout(np->pgdir, s_ptr, stack_arr, nargs*4) < 0){
     return -1;
   }
-  //cprintf("%d %d\n", *(uint*)(s_ptr + 4), *(uint*)(s_ptr + 8));
 
+  // set registers
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -278,22 +276,24 @@ int clone(void(*fcn)(void *, void *), void *arg1, void *arg2, void *stack) {
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0; //change register
 
-  
   np->tf->esp = (uint)s_ptr;
   np->tf->eip = (uint)fcn;
 
-
+  // Copy over files to new stack
   for(i = 0; i < NOFILE; i++) {
     if(curproc->ofile[i]) {
       np->ofile[i] = filedup(curproc->ofile[i]);
     }
 }
+
+  // sets directory
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
 
+  // changes state
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);

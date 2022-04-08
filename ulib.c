@@ -4,18 +4,15 @@
 #include "user.h"
 #include "x86.h"
 #include "mmu.h"
-//#include "stddef.h"
 #include "param.h"
 
 typedef struct ptr_storage {
     void* orig_ptr;
     void* offset_ptr;
-    struct ptr_storage* next;
 } ptr_storage;
 
-//struct ptr_storage* ptrs_head;
-ptr_storage ptr_pairs[NPROC];
-int cell_full[NPROC];
+ptr_storage ptr_pairs[NPROC*2];
+int cell_full[NPROC*2];
 
 char*
 strcpy(char *s, const char *t)
@@ -129,7 +126,7 @@ int thread_create(void (*start_routine)(void *, void *), void *arg1, void *arg2)
   }
 
   int i;
-  for (i = 0; i < NPROC; i++) {
+  for (i = 0; i < NPROC*2; i++) {
     if (cell_full[i] != 1) { break; }
   }
   if (cell_full[i] == 1) {
@@ -140,41 +137,15 @@ int thread_create(void (*start_routine)(void *, void *), void *arg1, void *arg2)
   ptr_pairs[i].offset_ptr = user_stack;
   cell_full[i] = 1;
 
-  // if (ptrs_head == NULL) {
-  //   ptrs_head = malloc(sizeof(ptr_storage));
-  //   ptrs_head->orig_ptr = curr_ptr;
-  //   ptrs_head->offset_ptr = user_stack;
-  //   ptrs_head->next = NULL;
-  // }
-  // else {
-  //   ptr_storage* curr_ptrs;
-  //   for (curr_ptrs = ptrs_head; curr_ptrs->next != NULL; curr_ptrs = curr_ptrs->next);
-  //   curr_ptrs->next = malloc(sizeof(ptr_storage));
-  //   curr_ptrs->next->orig_ptr = curr_ptr;
-  //   curr_ptrs->next->offset_ptr = user_stack;
-  //   curr_ptrs->next->next = NULL;
-  // }
-
-  return clone(user_stack, start_routine, arg1, arg2);
+  return clone(start_routine, arg1, arg2, user_stack);
 }
 
 int thread_join(){
   void* diov;
   int out = join(&diov);
-
-  // if (ptrs_head == NULL) { return -1; }
-  // ptr_storage* curr_ptrs;
-  // ptr_storage* prev_ptrs = ptrs_head;
-  // for (curr_ptrs = ptrs_head; curr_ptrs->offset_ptr != diov && curr_ptrs->next != NULL; curr_ptrs = curr_ptrs->next) {
-  //   prev_ptrs = curr_ptrs;
-  // }
-  // if (curr_ptrs->next == NULL && curr_ptrs->offset_ptr != diov) { return -1; }
-  // free(curr_ptrs->orig_ptr);
-  // prev_ptrs->next = curr_ptrs->next;
-  // free(curr_ptrs);
-
   int i;
-  for (i = 0; i < NPROC; i++) {
+
+  for (i = 0; i < NPROC*2; i++) {
     if (ptr_pairs[i].offset_ptr == diov) { break; }
   }
   if (ptr_pairs[i].offset_ptr != diov) { return -1; }
@@ -203,7 +174,8 @@ void lock_init(lock_t *lock) {
 void lock_acquire(lock_t *lock) {
 
     int myturn = fetch_and_add(&lock->ticket, 1);
-    while( fetch_and_add(&lock->turn, 0) != myturn ) { //changed
+
+    while( fetch_and_add(&lock->turn, 0) != myturn ) {
       ; // spin
     }
 }
